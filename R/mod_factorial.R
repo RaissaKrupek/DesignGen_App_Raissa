@@ -7,6 +7,7 @@
 #' @noRd 
 #'
 #' @importFrom shiny NS tagList 
+
 mod_factorial_ui <- function(id){
   ns <- NS(id)
   tagList(
@@ -149,6 +150,7 @@ mod_factorial_ui <- function(id){
 #' @import dplyr
 #' 
 #' @noRd 
+
 mod_factorial_server <- function(input, output, session){
   ns <- session$ns
   library(GAD)
