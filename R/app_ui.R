@@ -155,7 +155,9 @@ app_ui <- function(request) {
           ),
           tabItem(tabName = "DBC",
                   mod_dbc_ui("dbc_ui_1")
-                  
+          ),
+          tabItem(tabName = "fac_arrange",
+                  mod_factorial_ui("factorial_ui_1")
           )
         )
       )
