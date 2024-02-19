@@ -33,7 +33,8 @@ app_ui <- function(request) {
           menuItem("Statistical analysis", tabName = "Stat", 
                    menuSubItem("Completely randomized design", tabName = "DIC", icon = icon("minus")),
                    menuSubItem("Randomized block design", tabName = "DBC", icon = icon("minus")),
-                   menuSubItem("Split plot design", tabName = "parc_sub", icon = icon("minus"))
+                   menuSubItem("Split plot design", tabName = "parc_sub", icon = icon("minus")),
+                   menuSubItem("Factorial arrangements", tabName = "fac_arrang", icon = icon("minus"))
           ),
           tags$li(class = "dropdown",
                   tags$a(href="https://statgen-esalq.github.io/", target="_blank", 
@@ -155,7 +156,10 @@ app_ui <- function(request) {
           tabItem(tabName = "DBC",
                   mod_dbc_ui("dbc_ui_1")
                   
-          )        
+          ),
+          tabItem(tabName = "fac_arrang",
+                  mod_factorial_ui("factorial_ui_1")
+          )
         )
       )
     )
