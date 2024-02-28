@@ -137,3 +137,23 @@ mod_factorial_ui <- function(id){
     )
   )
 }
+
+#' assumptionsTest Server Function
+#'
+#' @import ggfortify
+#' @import ggplot2
+#' @import lmtest
+#' @import car
+#' @import psych
+#' @import multtest
+#' @import GAD
+#' @import dplyr
+#' 
+#' @noRd 
+
+mod_factorial_server <- function(input, output, session){
+  ns <- session$ns
+  library(GAD)
+  
+}
+ 
