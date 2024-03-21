@@ -35,7 +35,7 @@ app_ui <- function(request) {
                    menuSubItem("Completely randomized design", tabName = "DIC", icon = icon("minus")),
                    menuSubItem("Randomized block design", tabName = "DBC", icon = icon("minus")),
                    menuSubItem("Split plot design", tabName = "parc_sub", icon = icon("minus")),
-                   menuSubItem("Factorial arrangements", tabName = "fac_arrang", icon = icon("minus"))
+                   menuSubItem("Factorial arrangements", tabName = "fac_arrange", icon = icon("minus"))
           ),
           tags$li(class = "dropdown",
                   tags$a(href="https://statgen-esalq.github.io/", target="_blank", 
