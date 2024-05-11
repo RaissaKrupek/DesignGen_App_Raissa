@@ -16,8 +16,8 @@ mod_factorial_ui <- function(id){
                  p("Here we present several tests for checking model assumptions for single trait and environment.")
              ),
              box(width = 12,
-                 selectInput(ns("assum_design"), label = h4("Experiment design - Split Plot"), 
-                             choices = list("Completely randomized (CRSP)" = "crsp" ,"Randomized complete block (RBSP)" = "rbsp", 
+                 selectInput(ns("assum_design"), label = h4("Experiment design - Factorial Arrangements"), 
+                             choices = list("Completely randomized" = "crsp" ,"Randomized complete block" = "rbsp", 
                                             selected = "rbsp")
                  ),
                  box(width = 12, solidHeader = TRUE, collapsible = TRUE, status="primary", title = "Input file",
@@ -43,6 +43,7 @@ mod_factorial_ui <- function(id){
                      actionButton(ns("assum1"), "Read the file",icon("refresh")), hr()
                  ),
                  
+                 # Select variables:
                  box(width = 12, solidHeader = TRUE, collapsible = TRUE, status="primary", title = "Select variables",
                      box(width = 12,
                          radioButtons(ns("assum4"), label = p("Select the transformation type:"),
@@ -50,17 +51,7 @@ mod_factorial_ui <- function(id){
                                       selected = "none"), hr(),
                          p("If your data still not present the assumptions safter transformation, we suggest the usage of Generalized Linear Models (still not implemented in this app).")
                      ),
-                     hr(),
-                     box(width = 6,
-                         radioButtons(ns("assum7"), label = p("Choose the whole-plot factor to be evaluated:"),
-                                      choices = "Press 'Read the file' button to update",
-                                      selected = "Press 'Read the file' button to update"),
-                     ),
-                     box(width = 6,
-                         radioButtons(ns("assum8"), label = p("Choose the split-plot factor to be evaluated:"),
-                                      choices = "Press 'Read the file' button to update",
-                                      selected = "Press 'Read the file' button to update"),
-                     ),
+          
                      hr(),
                      box(width = 6,
                          radioButtons(ns("assum2"), label = p("Choose the traits to be evaluated"),
@@ -83,6 +74,8 @@ mod_factorial_ui <- function(id){
                      #     p("Expand the windows above to access the results")
                      #     )
                  ),
+                 
+                 #Plots:
                  box(width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = T, status="info", title = "Plots",
                      
                      box(width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = T, title = "Residuals vs fitted values",
@@ -106,6 +99,8 @@ mod_factorial_ui <- function(id){
                          plotOutput(ns("assum5_plot_out")),
                      )
                  ),
+                 
+                 #Anova:
                  box(width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = T, status="info", title = "Anova",
                      DT::dataTableOutput(ns("assum_anova_out"))
                  ),
@@ -146,7 +141,6 @@ mod_factorial_ui <- function(id){
 #' @import car
 #' @import psych
 #' @import multtest
-#' @import GAD
 #' @import dplyr
 #' 
 #' @noRd 
@@ -207,7 +201,7 @@ mod_factorial_server <- function(input, output, session){
   })
   
   observe({
-    #I need change that, it's the problem
+    #I need to change that, it's the problem
     choices_trait_temp <- colnames(button_assum1())[-c(1:4)]
     choices_trait <- choices_trait_temp
     names(choices_trait) <- choices_trait_temp
@@ -240,15 +234,6 @@ mod_factorial_server <- function(input, output, session){
     choices_locations <- choices_locations_temp
     names(choices_locations) <- choices_locations_temp
     
-    updateRadioButtons(session, "assum7",
-                       label="Choose the whole-plot factor to be evaluated:",
-                       choices = choices_factor,
-                       selected = unlist(choices_factor)[1])
-    
-    updateRadioButtons(session, "assum8",
-                       label="Choose the split-plot factor to be evaluated:",
-                       choices = choices_factor,
-                       selected = unlist(choices_factor)[1])
     
     updateRadioButtons(session, "assum2",
                        label="Choose the trait to be evaluated:",
@@ -265,20 +250,21 @@ mod_factorial_server <- function(input, output, session){
     withProgress(message = 'Building graphic', value = 0, {
       incProgress(0, detail = paste("Doing part", 1))
       dat <- button_assum1()
-      dat$time <- as.factor(dat$time)
       dat$gen <- as.factor(dat$gen)
       dat$local <- as.factor(dat$local)
       
       
       if(input$assum_design == "rbsp"){
-        if(!all(c("local", "block", "time", "gen") %in% colnames(dat)) | ("rep" %in% colnames(dat)))
-          stop(safeError("Randomized block split plot design should have columns 'local', 'block', 'time', and 'gen'."))
+        if(!all(c("local", "block", "gen") %in% colnames(dat)) | ("rep" %in% colnames(dat)))
+          stop(safeError("Randomized block factorial arrangement design should have columns 'local', 'block', 'time', and 'gen'."))
         dat$block <- as.factor(dat$block)
         #Mutio importante lembrar que é aqui onde os dados serão filtrados, disponibilizando apenas aqueles que serão analisados
-        dat <- dat %>% select(c("local", "block", input$assum7, input$assum8, input$assum2)) %>%
-          filter(local == input$assum3) %>% droplevels() #droplevels() - It's useful to remove unneeded factor levels
+        dat <- dat %>% select(c("local", "block", input$assum2)) %>%
+          filter(local == input$assum3) %>% droplevels()
+        #droplevels() - It's useful to remove unneeded factor levels
         
         dat$block <- as.random(dat$block)
+        #o que o as.random() faz?
         
         if(input$assum4 == "none"){
           mod <- run_models_sp(df = dat, pheno = dat[,input$assum2] , whole_f = dat[,input$assum7] , split_f = dat[,input$assum8] , design = "RBSP", multi_env = F)
@@ -294,10 +280,10 @@ mod_factorial_server <- function(input, output, session){
         
       } else {
         if(!all(c("local", "block", "gen", "rep") %in% colnames(dat)))
-          stop(safeError("Completely randomized split plot design should have columns 'local', 'rep', 'time', and 'gen'."))
+          stop(safeError("Completely randomized factorial arrangement design should have columns 'local', 'rep', 'time', and 'gen'."))
         dat$rep <- as.factor(dat$rep)
         #Just remember that it's an important step in the analysis's process
-        dat <- dat %>% select(c("local", "rep", input$assum7, input$assum8, input$assum2)) %>%
+        dat <- dat %>% select(c("local", "rep", input$assum2)) %>%
           filter(local == input$assum3) %>% droplevels()
         
         dat$rep <- as.random(dat$rep)
@@ -366,9 +352,10 @@ mod_factorial_server <- function(input, output, session){
       labs(title = "Histogram of Residuals",x = "Residuals", y = "Frequency")
   })
   
-  # Here, I use the function gad() because those design have two experimental units, so there're two expetimental error terms 
+  
+  
   # output$assum_anova_out <- DT::renderDataTable({
-  #   DT::datatable(data.frame(gad(button_assum2()[[1]])),
+  #   DT::datatable(data.frame(anova(button_assum2()[[1]])),
   #                 rownames = c("block", paste(input$assum7), paste(input$assum8), paste("block:", input$assum7), paste(input$assum7, input$assum8, sep = ":"), "residual"),
   #                 extensions = 'Buttons',
   #                 options = list(
@@ -381,7 +368,7 @@ mod_factorial_server <- function(input, output, session){
   # 
   output$assum_anova_out <- DT::renderDataTable({
     # Obtenha o conjunto de dados
-    data <- gad(button_assum2()[[1]])
+    data <- anova(button_assum2()[[1]])
     
     # Especifique as colunas que deseja arredondar e o número de casas decimais
     # columns_to_round <- c("Sum.Sq", "Mean.Sq", "F.value", "Pr..F.", "outra_coluna1", "outra_coluna2")
