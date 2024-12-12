@@ -17,8 +17,8 @@ mod_factorial_ui <- function(id){
              ),
              box(width = 12,
                  selectInput(ns("assum_design"), label = h4("Experiment design - Factorial Arrangements"), 
-                             choices = list("Completely randomized" = "crsp" ,"Randomized complete block" = "rbsp", 
-                                            selected = "rbsp")
+                             choices = list("Completely randomized" = "crfa" ,"Randomized complete block" = "rbfa", 
+                                            selected = "rbfa")
                  ),
                  box(width = 12, solidHeader = TRUE, collapsible = TRUE, status="primary", title = "Input file",
                      p("The input file is a tab delimited table with a column called 'local' defining the environment and 
@@ -61,7 +61,7 @@ mod_factorial_ui <- function(id){
                          radioButtons(ns("assum8"), label = p("Choose the second factor to be evaluated:"),
                                       choices = "Press 'Read the file' button to update",
                                       selected = "Press 'Read the file' button to update"),
-          
+                         
                      ),                    
                      hr(),
                      box(width = 6,
@@ -73,15 +73,15 @@ mod_factorial_ui <- function(id){
                          radioButtons(ns("assum3"), label = p("Choose the location to be evaluated:"),
                                       choices = "Press 'Read the file' button to update",
                                       selected = "Press 'Read the file' button to update")
-                        
+                         
                      ),
                      
                      actionButton(ns("assum5"), "Run analysis", icon("refresh")), 
                      hr(),
                      
                      box(width = 12,
-                     p("Expand the windows above to access the results")
-                         )
+                         p("Expand the windows above to access the results")
+                     )
                  ),
                  
                  #Plots:
@@ -116,6 +116,7 @@ mod_factorial_ui <- function(id){
                  
                  #Desdobramento
                  box(width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = T, status="info", title = "Unfolding the interaction",
+                     p("For analysis of unfold interactions, p-valor of interactions must be significative"),
                      DT::dataTableOutput(ns("assum_unfold_out"))
                      
                  ),
@@ -148,16 +149,11 @@ mod_factorial_ui <- function(id){
                      tableOutput(ns("assum_out_out"))
                  ),
                  
-                 #Variance Inflation Factors
-                 box(width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = T, status="info", title = "Variance Inflation Factors",
-                     p("Checking multicollinearity: VIF value higher than 10 indicates multicollinearity."),
-                     tableOutput(ns("assum_vif_out"))
-                 )
              )
     )
   )
 }
- 
+
 #' assumptionsTest Server Function
 #'
 #' @import ggfortify
@@ -167,6 +163,7 @@ mod_factorial_ui <- function(id){
 #' @import psych
 #' @import multtest
 #' @import dplyr
+#' @import emmeans
 #' 
 #' @noRd 
 #' 
@@ -176,15 +173,20 @@ mod_factorial_server <- function(input, output, session){
   ## download input
   output$assum_input_exemple <- downloadHandler(
     filename =  function() {
-      paste("example_assum.txt")
+      if(input$assum_design == "rbfa"){
+      paste("example_factorial_dbc.txt")
+      } else {
+        paste("example_factorial_dic.txt")
+      }
+      
     },
     # content is a function with argument file. content writes the plot to the device
     content = function(file) {
       # ARRUMAR OS EXEMPLOS
-      if(input$assum_design == "rbsp"){
-        dat <- read.csv(system.file("ext","example_inputs/example_blocks.csv", package = "StatGenESALQ"))
+      if(input$assum_design == "rbfa"){
+        dat <- read.csv("~/STATGEN/Iniciacao Cientifica/DesignGen_App_Raissa/Examples/example_factorial_dbc.csv")
       } else {
-        dat <- read.csv(system.file("ext","example_inputs/example_lattice.csv", package = "StatGenESALQ"))
+        dat <- read.csv("~/STATGEN/Iniciacao Cientifica/DesignGen_App_Raissa/Examples/example_factorial_dic.csv")
       }
       write.csv(dat, file = file, row.names = F)
     } 
@@ -210,7 +212,7 @@ mod_factorial_server <- function(input, output, session){
     str(input$data_assum)
     #Aqui esta pegando os exemplos
     if(is.null(input$data_assum)){
-      if(input$assum_design == "rbsp"){
+      if(input$assum_design == "rbfa"){
         # ARRUMAR OS EXAMPLOS
         dat <- read.csv(system.file("ext","example_inputs/example_blocks.csv", package = "StatGenESALQ"))
       } else {
@@ -225,7 +227,7 @@ mod_factorial_server <- function(input, output, session){
     dat
   })
   
-#As seguintes linhas filtrarao as opcoes de selecao 
+  #As seguintes linhas filtrarao as opcoes de selecao 
   
   observe({
     #I need to change that, it's the problem
@@ -233,30 +235,12 @@ mod_factorial_server <- function(input, output, session){
     choices_trait <- choices_trait_temp
     names(choices_trait) <- choices_trait_temp
     
-    #Veremos no que dá
     choices_factor_temp <- colnames(button_assum1()[,3:4])
     
-    # just to check: print(choices_factor_temp)
-    # to_remove <- c('local', 'gen')
-    # choices_factor_temp[ , !(names(choices_factor_temp) %in% to_remove)]
-    
-    # subset(choices_factor_temp, select = -c(local, gen))
-    
-    # choices_factor_temp <- as.character(choices_factor_temp)
-    
-    # choices_factor_temp %>% 
-    #   select(-c("local", "gen"))
     
     choices_factor <- choices_factor_temp
     names(choices_factor) <- choices_factor_temp
     
-    # to_remove <- c("local", "gen")
-    # choices_factor[ , !(names(choices_factor) %in% to_remove)]
-    
-    # choices_factor %>%
-    #   select(-c("local", "gen"))
-    
-    # subset(choices_factor, select = -c(local, block))
     
     choices_locations_temp <- unique(button_assum1()[,"local"])
     choices_locations <- choices_locations_temp
@@ -287,21 +271,13 @@ mod_factorial_server <- function(input, output, session){
     withProgress(message = 'Building graphic', value = 0, {
       incProgress(0, detail = paste("Doing part", 1))
       dat <- button_assum1()
-     
+      
       dat$local <- as.factor(dat$local)
-      dat$factor1 <- as.factor(dat$gen)
-      dat$factor2 <- as.factor(dat$soil)
+      dat$gen <- as.factor(dat$gen)
+      dat$soil <- as.factor(dat$soil)
       
-#-------------------------------------------------------------------------------
-      #Treatment <- dat$gen:dat$soil
       
-      #dados <- data.frame(dat,Treatment)
-      
-      ## Anova
-      #modelo <- lm(input$assum2 ~ Treatment, data = dados)
-      #anova(modelo)
-      
-      if(input$assum_design == "rbsp"){
+      if(input$assum_design == "rbfa"){
         if(!all(c("local", "block", "gen", "soil") %in% colnames(dat)) | ("rep" %in% colnames(dat)))
           stop(safeError("Randomized block factorial arrangement design should have columns 'local', 'block', 'gen', and 'soil'."))
         
@@ -313,30 +289,23 @@ mod_factorial_server <- function(input, output, session){
         #droplevels() - It's useful to remove unneeded factor levels
         
         dat$block <- as.random(dat$block)
-        #o que o as.random() faz?
-        
-        #Montando os tratamentos 
-        #treat <- dat$gen:dat$soil
-        #dat <- data.frame(dat,treat)
-        #dados=data.frame(F1,F2,bloco,resp=NN)
-       
-
+  
         
         if(input$assum4 == "none"){
-          mod <- run_models_sp(df = dat, pheno = dat[,input$assum2] , whole_f = dat[,input$assum7] , split_f = dat[,input$assum8] , design = "RBSP", multi_env = F)
+          mod <- run_models_fac (df = dat, pheno = dat[,input$assum2] , factor1 = dat[,input$assum7] , factor2 = dat[,input$assum8] , design = "RBFA", multi_env = F)
         } else if(input$assum4 == "log"){
-          mod <- run_models_sp(df = dat, pheno = log(dat[,input$assum2]) , whole_f = dat[,input$assum7] , split_f = dat[,input$assum8] ,design = "RBSP", multi_env = F)
+          mod <- run_models_log_fac (df = dat, pheno = log(dat[,input$assum2]) , factor1 = dat[,input$assum7] , factor2 = dat[,input$assum8] ,design = "RBFA", multi_env = F)
         } else if(input$assum4 == "sqrt(x + 0.5)"){
-          mod <- run_models_sp(df = dat, pheno = sqrt(dat[,input$assum2] + 0.5) , whole_f = dat[,input$assum7] , split_f = dat[,input$assum8] ,design = "RBSP", multi_env = F)
+          mod <- run_models_sqrt_fac (df = dat, pheno = sqrt(dat[,input$assum2] + 0.5) , factor1 = dat[,input$assum7] , factor2 = dat[,input$assum8] ,design = "RBFA", multi_env = F)
         } else if(input$assum4 == "boxcox"){
-          mod <- run_models_boxcox_sp(df = dat, pheno = dat[,input$assum2] , whole_f = dat[,input$assum7] , split_f = dat[,input$assum8] ,design = "RBSP", multi_env = F)
+          mod <- run_models_boxcox_fac(df = dat, pheno = dat[,input$assum2] , factor1 = dat[,input$assum7] , factor2 = dat[,input$assum8] ,design = "RBFA", multi_env = F)
         } 
         
         incProgress(0.5, detail = paste("Doing part", 2))
         
       } else {
         if(!all(c("local", "gen", "soil", "rep") %in% colnames(dat)))
-          stop(safeError("Completely randomized factorial arrangement design should have columns 'local', 'rep', 'gen', and 'maneg'."))
+          stop(safeError("Completely randomized factorial arrangement design should have columns 'local', 'rep', 'gen', and 'soil'."))
         
         dat$rep <- as.factor(dat$rep)
         
@@ -347,13 +316,13 @@ mod_factorial_server <- function(input, output, session){
         dat$rep <- as.random(dat$rep)
         
         if(input$assum4 == "none"){
-          mod <- run_models_sp(df = dat, pheno = dat[,input$assum2] , whole_f = dat[,input$assum7] , split_f = dat[,input$assum8] ,design = "CRSP", multi_env = F)
+          mod <- run_models_fac (df = dat, pheno = dat[,input$assum2] , factor1 = dat[,input$assum7] , factor2 = dat[,input$assum8] ,design = "CRFA", multi_env = F)
         } else if(input$assum4 == "log"){
-          mod <- run_models_sp(df = dat, pheno = log(dat[,input$assum2]) , whole_f = dat[,input$assum7] , split_f = dat[,input$assum8] ,design = "CRSP", multi_env = F)
+          mod <- run_models_log_fac (df = dat, pheno = log(dat[,input$assum2]) , factor1 = dat[,input$assum7] , factor2 = dat[,input$assum8] ,design = "CRFA", multi_env = F)
         } else if(input$assum4 == "sqrt(x + 0.5)"){
-          mod <- run_models_sp(df = dat, pheno = sqrt(dat[,input$assum2] + 0.5) , whole_f = dat[,input$assum7] , split_f = dat[,input$assum8] ,design = "CRSP", multi_env = F)
+          mod <- run_models_sqrt_fac (df = dat, pheno = sqrt(dat[,input$assum2] + 0.5) , factor1 = dat[,input$assum7] , factor2 = dat[,input$assum8] ,design = "CRFA", multi_env = F)
         } else if(input$assum4 == "boxcox"){
-          mod <- run_models_boxcox_sp(df = dat, pheno = dat[,input$assum2] , whole_f = dat[,input$assum7] , split_f = dat[,input$assum8] ,design = "CRSP", multi_env = F)
+          mod <- run_models_boxcox_fac(df = dat, pheno = dat[,input$assum2] , factor1 = dat[,input$assum7] , factor2 = dat[,input$assum8] ,design = "CRFA", multi_env = F)
         } 
       }
       
@@ -370,8 +339,12 @@ mod_factorial_server <- function(input, output, session){
                           parameter = bp$parameter,
                           method = bp$method,
                           `p-value` = bp$p.value)
+      #unfold <- emmeans(mod$residuals, ~ factor1:factor2)
+      #unfold <- joint_tests(mod, by = input$gen)
+      #unfold <- emmeans(mod, ~ gen:soil)
+     
       incProgress(0.25, detail = paste("Doing part", 2))
-      list(mod,df,dur_df,bp_df, dat)
+      list(mod,df,dur_df,bp_df,dat)
     })
   })
   
@@ -380,18 +353,7 @@ mod_factorial_server <- function(input, output, session){
     autoplot(button_assum2()[[1]], which = 1, data = button_assum2()[[5]],
              colour = "#CC662f", smooth.colour = "#003350")
   })
-  
-  # output$assum1_plot_out <- renderPlot({
-  #   # Crie o gráfico
-  #   plot <- autoplot(button_assum2()[[1]], which = 1, data = button_assum2()[[5]],
-  #                    colour = "#CC662f", smooth.colour = "#003350")
-  #   
-  #   # Ajuste o tamanho do gráfico para preencher a janela
-  #   plot + theme(plot.margin = margin(0, 0, 0, 0, "cm")) +
-  #     coord_cartesian(clip = "on")  # Evita que elementos do gráfico sejam cortados
-  # })
-  
-  
+
   output$assum2_plot_out <- renderPlot({
     autoplot(button_assum2()[[1]], which = 2, data = button_assum2()[[5]],
              colour = "#CC662f", smooth.colour = "#003350") 
@@ -411,20 +373,8 @@ mod_factorial_server <- function(input, output, session){
   })
   
   
-  
-  # output$assum_anova_out <- DT::renderDataTable({
-  #   DT::datatable(data.frame(anova(button_assum2()[[1]])),
-  #                 rownames = c("block", paste(input$assum7), paste(input$assum8), paste("block:", input$assum7), paste(input$assum7, input$assum8, sep = ":"), "residual"),
-  #                 extensions = 'Buttons',
-  #                 options = list(
-  #                   dom = 'Bfrtlp',
-  #                   buttons = c('copy', 'csv', 'excel', 'pdf')
-  #                   ),
-  #                 class = "display") %>%
-  #     DT::formatStyle(columns = 2:4, decimalPlaces = 4)
-  #   })
-  # 
   output$assum_anova_out <- DT::renderDataTable({
+    
     # Obtenha o conjunto de dados
     data <- anova(button_assum2()[[1]])
     
@@ -442,48 +392,62 @@ mod_factorial_server <- function(input, output, session){
       data[[col]] <- round(as.numeric(data[[col]]), decimal_places1)
     }
     
-    # Crie a tabela DataTable
+    if(input$assum_design == "rbfa"){
+      DT::datatable(data,
+                    rownames = c("block", paste(input$assum7), paste(input$assum8), paste(input$assum7, input$assum8, sep = ":"), "residual"),
+                    extensions = 'Buttons',
+                    options = list(
+                      dom = 'Bfrtlp',
+                      buttons = c('copy', 'csv', 'excel', 'pdf')
+                    ),
+                    class = "display")
+    }
+    else if(input$assum_design == "crfa") {
+      
     DT::datatable(data,
-                  rownames = c("block", paste(input$assum7), paste(input$assum8), paste(input$assum7, input$assum8, sep = ":"), "residual"),
+                  rownames = c(paste(input$assum7), paste(input$assum8), paste(input$assum7, input$assum8, sep = ":"), "residual"),
                   extensions = 'Buttons',
                   options = list(
                     dom = 'Bfrtlp',
                     buttons = c('copy', 'csv', 'excel', 'pdf')
                   ),
                   class = "display")
+    }
   })
-#------------------------------------------------------------------------------
+  
   output$assum_unfold_out <- DT::renderDataTable({
     
     data <- anova(button_assum2()[[1]])
-  
-  # Especifique as colunas que deseja arredondar e o número de casas decimais
-  # columns_to_round <- c("Sum.Sq", "Mean.Sq", "F.value", "Pr..F.", "outra_coluna1", "outra_coluna2")
-  
-  # Arredonde as colunas selecionadas
-  decimal_places1 <- 2 
-  for (col in 2:4) {
-    data[[col]] <- round(as.numeric(data[[col]]), decimal_places1)
-  }
-  
-  decimal_places1 <- 5
-  for (col in 5) {
-    data[[col]] <- round(as.numeric(data[[col]]), decimal_places1)
-  }
-  
-  # Crie a tabela DataTable
-  DT::datatable(data,
-                rownames = c(paste(input$assum7), paste(input$assum8, ), paste(input$assum7, input$assum8, sep = ":"), "residual"),
-                extensions = 'Buttons',
-                options = list(
-                  dom = 'Bfrtlp',
-                  buttons = c('copy', 'csv', 'excel', 'pdf')
-                ),
-                class = "display")
-})
-  
+
+    if (data["factor1:factor2", "Pr(>F)"] < 0.05) {
+      
+      unf <- run_models_unf(df = dat, 
+                            pheno = dat[,input$assum2], 
+                            factor1 = dat[,input$assum7], 
+                            factor2 = dat[,input$assum8], 
+                            design = "RBFA", 
+                            multi_env = F)
+
+      DT::datatable(unf,
+                    rownames = c(paste(input$assum7),"d.", paste(input$assum8-1), 
+                                 paste(input$assum7),"d.", paste(input$assum8-2),
+                                 paste(input$assum7),"d.", paste(input$assum8-3),
+                                 paste(input$assum7),"d.", paste(input$assum8-4),
+                                 sep = ":", "residual"),
+                    extensions = 'Buttons',
+                    options = list(
+                      dom = 'Bfrtlp',
+                      buttons = c('copy', 'csv', 'excel', 'pdf')
+                    ),
+                    class = "display")
+    } else { paste("p-value > 0.05 indicates that the analysis should focus on the main effects.
+                    Simple effects should only be analyzed if the interaction is significant.")
+        }
+
+   })
+
   output$assum_sha_out <- DT::renderDataTable(
-    DT::datatable(button_assum2()[[2]],  
+    DT::datatable(button_assum2()[[2]],
                   extensions = 'Buttons',
                   options = list(
                     dom = 'Bfrtlp',
@@ -491,8 +455,9 @@ mod_factorial_server <- function(input, output, session){
                   ),
                   class = "display")
   )
+
   output$assum_dur_out <- DT::renderDataTable(
-    DT::datatable(button_assum2()[[3]],  
+    DT::datatable(button_assum2()[[3]],
                   extensions = 'Buttons',
                   options = list(
                     dom = 'Bfrtlp',
@@ -500,9 +465,9 @@ mod_factorial_server <- function(input, output, session){
                   ),
                   class = "display")
   )
-  
+
   output$assum_bp_out <- DT::renderDataTable(
-    DT::datatable(button_assum2()[[4]],  
+    DT::datatable(button_assum2()[[4]],
                   extensions = 'Buttons',
                   options = list(
                     dom = 'Bfrtlp',
@@ -510,14 +475,10 @@ mod_factorial_server <- function(input, output, session){
                   ),
                   class = "display")
   )
-  
+
   output$assum_out_out <- renderTable({
     as.data.frame(outlier(button_assum2()[[1]]$residuals))
-  })
-  
-  output$assum_vif_out <- renderTable({
-    as.data.frame(vif(button_assum2()[[1]]))
-  })
+   })
   
 }
 
@@ -558,104 +519,147 @@ outlier <- function(resid, alpha=0.05){
   return(outliers_BH_df)
 }
 
-#-------------------------------------------------------------------------------
+
 ##' Utilities
 ##' 
 ##' @import MASS
 run_models_boxcox_fac <-function(pheno, factor1, factor2, df, design, multi_env){
-  if(design == "CRD"){
-    if(multi_env){
-      bc <- boxcox(pheno ~ df$gen + df$local/df$local + df$gen*df$local, plotit=F, lam=seq(-3, 3, 1/20))
-      lambda <- bc$x[which.max(bc$y)]
-      pheno_trans <- ((pheno^lambda-1)/lambda)
-      
-      mod <- lm(pheno_trans ~ df$gen + df$local/df$local + df$gen*df$local)
-      
-    } else {
-      bc <- boxcox(pheno ~ df$gen, plotit=F, lam=seq(-3, 3, 1/20))
-      lambda <- bc$x[which.max(bc$y)]
-      pheno_trans <- ((pheno^lambda-1)/lambda)
-      
-      mod <- lm(pheno_trans ~ df$gen)
-    }
-  } else if(design == "DBC"){
-    if(multi_env){
-      bc <- boxcox(pheno ~ df$gen + df$local/df$block + df$local + df$gen*df$local, plotit=F, lam=seq(-3, 3, 1/20))
-      lambda <- bc$x[which.max(bc$y)]
-      pheno_trans <- ((pheno^lambda-1)/lambda)
-      
-      mod <- lm(pheno_trans ~ df$gen + df$local/df$block + df$local + df$gen*df$local)
-      
-    } else {
-      bc <- boxcox(pheno ~ df$gen + df$block, plotit=F, lam=seq(-3, 3, 1/20))
-      lambda <- bc$x[which.max(bc$y)]
-      pheno_trans <- ((pheno^lambda-1)/lambda)
-      
-      mod <- lm(pheno_trans ~ df$gen + df$block)
-    }
-  } else if(design == "lattice") {
-    if(multi_env){
-      bc <- boxcox(pheno ~ df$gen + df$local/df$rep/df$block +
-                     df$local/df$rep + df$local + df$gen*df$local, plotit=F, lam=seq(-3, 3, 1/20))
-      lambda <- bc$x[which.max(bc$y)]
-      pheno_trans <- ((pheno^lambda-1)/lambda)
-      
-      mod <- lm(pheno_trans ~ df$gen + df$local/df$rep/df$block +
-                  df$local/df$rep + df$local + df$gen*df$local)
-    } else {
-      bc <- boxcox(pheno ~ df$gen + df$rep/df$block, plotit=F, lam=seq(-3, 3, 1/20))
-      lambda <- bc$x[which.max(bc$y)]
-      pheno_trans <- ((pheno^lambda-1)/lambda)
-      
-      mod <- lm(pheno_trans ~ df$gen + df$rep/df$block)
-    }
-  } else if(design == "RBSP") {
+  if(design == "RBFA"){
     
     block <- as.random(df$block)
     factor1 <- as.factor(factor1)
     factor2 <- as.factor(factor2)
     
-    # if(multi_env){
-    #   bc <- boxcox(pheno ~ df$gen + df$local/df$rep/df$block +
-    #                  df$local/df$rep + df$local + df$gen*df$local, plotit=F, lam=seq(-3, 3, 1/20))
-    #   lambda <- bc$x[which.max(bc$y)]
-    #   pheno_trans <- ((pheno^lambda-1)/lambda)
-    #   
-    #   mod <- lm(pheno_trans ~ df$gen + df$local/df$rep/df$block +
-    #               df$local/df$rep + df$local + df$gen*df$local)
-    # } else {
     bc <- boxcox(pheno ~ block + factor1 + factor2 + factor1:factor2, plotit=F, lam=seq(-3, 3, 1/20))
     lambda <- bc$x[which.max(bc$y)]
     pheno_trans <- ((pheno^lambda-1)/lambda)
     
     mod <- lm(pheno_trans ~ block + factor1 + factor2 + factor1:factor2)
-    #   }
+    
   }
-  else if(design == "CRSP") {
+  else if(design == "CRFA") {
     
     rep <- as.random(df$rep)
     factor1 <- as.factor(factor1)
     factor2 <- as.factor(factor2)
     
-    # if(multi_env){
-    #   bc <- boxcox(pheno ~ df$gen + df$local/df$rep/df$block +
-    #                  df$local/df$rep + df$local + df$gen*df$local, plotit=F, lam=seq(-3, 3, 1/20))
-    #   lambda <- bc$x[which.max(bc$y)]
-    #   pheno_trans <- ((pheno^lambda-1)/lambda)
-    #   
-    #   mod <- lm(pheno_trans ~ df$gen + df$local/df$rep/df$block +
-    #               df$local/df$rep + df$local + df$gen*df$local)
-    # } else {
+   
     bc <- boxcox(pheno ~ factor1 + factor2 + factor1:factor2, plotit=F, lam=seq(-3, 3, 1/20))
     lambda <- bc$x[which.max(bc$y)]
     pheno_trans <- ((pheno^lambda-1)/lambda)
     
     mod <- lm(pheno_trans ~ factor1 + factor2 + factor1:factor2)
-    #   }
+    
   }
   return(mod)
 }
 
+run_models_log_fac <-function(pheno, factor1, factor2, df, design, multi_env){
+  if(design == "RBFA"){
+    
+    block <- as.random(df$block)
+    factor1 <- as.factor(factor1)
+    factor2 <- as.factor(factor2)
+  
+    pheno_trans <- log(pheno + 1)
+    # Se houver valores zero ou negativos em pheno, adicionamos uma constante (no caso, 1)
+    #para evitar erros, já que o logaritmo de números negativos ou zero não é definido.
+    
+    mod <- lm(pheno_trans ~ block + factor1 + factor2 + factor1:factor2)
+    
+  }
+  else if(design == "CRFA") {
+    
+    rep <- as.random(df$rep)
+    factor1 <- as.factor(factor1)
+    factor2 <- as.factor(factor2)
+    
+    pheno_trans <- log(pheno + 1)
+    
+    mod <- lm(pheno_trans ~ factor1 + factor2 + factor1:factor2)
+    
+  }
+  return(mod)
+}
+
+run_models_sqrt_fac <-function(pheno, factor1, factor2, df, design, multi_env){
+  if(design == "RBFA"){
+    
+    block <- as.random(df$block)
+    factor1 <- as.factor(factor1)
+    factor2 <- as.factor(factor2)
+    
+    pheno_trans <- (sqrt(pheno + 5))
+    # adicionando 0.5 para evitar problemas com valores negativos.
+    
+    mod <- lm(pheno_trans ~ block + factor1 + factor2 + factor1:factor2)
+    
+  }
+  else if(design == "CRFA") {
+    
+    rep <- as.random(df$rep)
+    factor1 <- as.factor(factor1)
+    factor2 <- as.factor(factor2)
+  
+    pheno_trans <- (sqrt(pheno + 5))
+    
+    mod <- lm(pheno_trans ~ factor1 + factor2 + factor1:factor2)
+    
+  }
+  return(mod)
+}
+
+run_models_fac <-function(pheno, factor1, factor2, df, design, multi_env){
+  if(design == "RBFA"){
+    
+    block <- as.random(df$block)
+    factor1 <- as.factor(factor1)
+    factor2 <- as.factor(factor2)
+    
+    mod <- lm(pheno ~ block + factor1 + factor2 + factor1:factor2)
+    
+  }
+  else if(design == "CRFA") {
+    
+    rep <- as.random(df$rep)
+    factor1 <- as.factor(factor1)
+    factor2 <- as.factor(factor2)
+  
+    mod <- lm(pheno ~ factor1 + factor2 + factor1:factor2)
+    
+  }
+  return(mod)
+}   
+
+run_models_unf <- function (factor1, factor2, unf, design, mod, data) {
+  if(design == "RBFA") {
+
+    factor1 <- as.factor(factor1)
+    factor2 <- as.factor(factor2)
+
+    colnames(with(data,model.matrix(~ factor1:factor2-1, data)))
+                  unf <- summary(mod,
+                        split = list("gen:soil" =
+                                       list(" gen d. soil1" = 1,
+                                            " gen d. soil2" = 2,
+                                            " gen d. soil3" = 3,
+                                            " gen d. soil4" = 4)))
+  }
+  else if (design == "CRFA") {
+    
+    factor1 <- as.factor(factor1)
+    factor2 <- as.factor(factor2)
+
+    colnames(with(data,model.matrix(~ factor1:factor2-1, data)))
+    unf <- summary(mod,
+                   split = list("gen:soil" =
+                                  list(" gen d. soil1" = 1,
+                                       " gen d. soil2" = 2,
+                                       " gen d. soil3" = 3,
+                                       " gen d. soil4" = 4)))
+  }
+  return(unf)
+}
 
 ## To be copied in the UI
 # mod_assumptionsTest_ui("assumptionsTest_ui_1")
@@ -663,6 +667,3 @@ run_models_boxcox_fac <-function(pheno, factor1, factor2, df, design, multi_env)
 ## To be copied in the server
 # callModule(mod_assumptionsTest_server, "assumptionsTest_ui_1")
 
-  
-  
- 
