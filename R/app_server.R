@@ -13,7 +13,7 @@ app_server <- function( input, output, session ) {
   callModule(mod_METindices_server, "METindices_ui_1")
   callModule(mod_met_server, "met_ui_1")
   callModule(mod_MixedModel_server, "MixedModel_ui_1")
-  callModele(mod_FixedModel_server, "FixedModel_ui_1")
+  callModule(mod_FixedModel_server, "FixedModel_ui_1")
   callModule(mod_dic_server, "dic_ui_1")
   callModule(mod_splitPlot_server, "splitPlot_ui_1")
   callModule(mod_dbc_server, "dbc_ui_1")
