@@ -12,39 +12,49 @@ mod_factorial_ui <- function(id){
   ns <- NS(id)
   tagList(
     fluidRow(style = "height:8000px",
-             box(width = 12,
-                 p("Here we present several tests for checking model assumptions for single trait and environment.")
+             box(width = 12, 
+                 p(HTML("Here, we present several tests for checking model assumptions for single trait and environment.
+                   On this page, we present several tests designed to assess model assumptions 
+                   and variance analyses (ANOVA) for fixed-effects linear models, applied across single trait and environment.
+                   For the analyses, factorial arrangements of treatments were implemented to better 
+                   capture the effects and estimate interactions.
+                   <ul>
+                     Please keep the following points in mind:
+                     <ul>
+                     <li>Follow each step and press the button at the end of each one;</li>
+                     <li>If you select something incorrectly or wish to change, you can return to the specific section to modify it and proceed with the subsequent steps;</li>
+                     </ul>"))
              ),
-             box(width = 12,
+             box(width = 12, 
                  selectInput(ns("assum_design"), label = h4("Experiment design - Factorial Arrangements"), 
                              choices = list("Completely randomized" = "crfa" ,"Randomized complete block" = "rbfa", 
                                             selected = "rbfa")
                  ),
-                 box(width = 12, solidHeader = TRUE, collapsible = TRUE, status="primary", title = "Input file",
+                 box(width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = T, status="primary", title = "Input file",
                      p("The input file is a tab delimited table with a column called 'local' defining the environment and 
                    other called 'gen' defining the genotypes. 
                    The adjusted phenotypic means should be included in extra columns. Download here an input file example:"),
-                     downloadButton(ns("assum_input_exemple")), hr(),
-                     p("Upload here your file:"),
-                     fileInput(ns("data_assum"), label = h6("File: data.txt"), multiple = F),
-                     p("If you do not have an file to be upload you can still check this app features with our example file. The example file is automatically upload, you just need to procedure to the other buttons."),
-                     hr(),
-                     p("Data View:"),
-                     box(width = 4,
-                         radioButtons(ns("assum6"), label = p("Select the separator"),
-                                      choices = list("Comma" = ",", "Semicolon" = ";", "Tab" = "\t"),
-                                      selected = ";")
-                     ),
-                     box(width = 8,  
-                         #Visualização dos dados
-                         tableOutput(ns("dataview"))
-                     ),
-                     hr(),
-                     actionButton(ns("assum1"), "Read the file",icon("refresh")), hr()
+                   downloadButton(ns("assum_input_exemple")), hr(),
+                   p("Upload here your file:"),
+                   fileInput(ns("data_assum"), label = h6("File: data.txt"), multiple = F),
+                   p("If you do not have an file to be upload you can still check this app features with our example file. The example file is automatically upload, you just need to procedure to the other buttons."),
+                   hr(),
+                   p("Data View:"),
+                   box(width = 4,
+                       radioButtons(ns("assum6"), label = p("Select the separator"),
+                                    choices = list("Comma" = ",", "Semicolon" = ";", "Tab" = "\t"),
+                                    selected = ";")
+                   ),
+                   box(width = 8,  
+                       #Visualização dos dados
+                       tableOutput(ns("dataview"))
+                   ),
+                   hr(),
+                   actionButton(ns("assum1"), "Read the file",icon("refresh")), hr()
                  ),
                  
                  # Select variables:
-                 box(width = 12, solidHeader = TRUE, collapsible = TRUE, status="primary", title = "Select variables",
+                 box(width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = T, status="primary", title = "Select variables",
                      box(width = 12,
                          radioButtons(ns("assum4"), label = p("Select the transformation type:"),
                                       choices = list("none" = "none","log" = "log", "sqrt(x + 0.5)" = "sqrt(x + 0.5)", "boxcox" = "boxcox"),
@@ -85,7 +95,7 @@ mod_factorial_ui <- function(id){
                  ),
                  
                  #Plots:
-                 box(width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = T, status="info", title = "Plots",
+                 box(width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = T, status="info", title = "Assumption Plots",
                      
                      box(width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = T, title = "Residuals vs fitted values",
                          p("Checking the linearity of the model: if the blue line is close to horizontal line."),
@@ -109,6 +119,34 @@ mod_factorial_ui <- function(id){
                      )
                  ),
                  
+                 
+                 #Assumption Tests
+                 box(width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = T, status="info", title = "Assumption Tests",
+                     #Shapiro-Wilk
+                     box(width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = T, status="info", title = "Shapiro-Wilk normality test",
+                         p("H0: normal distribuition (p-value > 0.05)."),
+                         p("H1: we can't consider that it is a normal distribuition (p-value < 0.05)."),
+                         DT::dataTableOutput(ns("assum_sha_out"))
+                     ),
+                     #Durbin-Watson
+                     box(width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = T, status="info", title = "Durbin-Watson Test for Autocorrelated Errors",
+                         p("Computes residual autocorrelations and generalized Durbin-Watson statistics and their bootstrapped p-values."),
+                         p("Used for normal distribuited longitudinal datasets. Usually, values of D-W between 1.5 and 2.5 indicate residual independence."),
+                         DT::dataTableOutput(ns("assum_dur_out"))
+                     ),
+                     #Breusch-Pagan 
+                     box(width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = T, status="info", title = "Breusch-Pagan Test",
+                         p("Performs the Breusch-Pagan test against heteroskedasticity."),
+                         p("Has as assumption normal distribuition."),
+                         p("H0: there is homocedascity of variances (p-value > 0.05)."),
+                         p("H1: we can't consider that there is homocedascity of variances (p-value < 0.05)."),
+                         DT::dataTableOutput(ns("assum_bp_out"))
+                     ),
+                     #Bonferroni-Holm
+                     box(width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = T, status="info", title = "Bonferroni-Holm tests for the adjusted p-values",
+                         tableOutput(ns("assum_out_out"))
+                     )),
+                 
                  #Anova:
                  box(width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = T, status="info", title = "Anova",
                      DT::dataTableOutput(ns("assum_anova_out"))
@@ -119,36 +157,7 @@ mod_factorial_ui <- function(id){
                      p("For analysis of unfold interactions, p-valor of interactions must be significative"),
                      DT::dataTableOutput(ns("assum_unfold_out"))
                      
-                 ),
-                 
-                 #Shapiro-Wilk
-                 box(width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = T, status="info", title = "Shapiro-Wilk normality test",
-                     p("H0: normal distribuition (p-value > 0.05)."),
-                     p("H1: we can't consider that it is a normal distribuition (p-value < 0.05)."),
-                     DT::dataTableOutput(ns("assum_sha_out"))
-                 ),
-                 
-                 #Durbin-Watson
-                 box(width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = T, status="info", title = "Durbin-Watson Test for Autocorrelated Errors",
-                     p("Computes residual autocorrelations and generalized Durbin-Watson statistics and their bootstrapped p-values."),
-                     p("Used for normal distribuited longitudinal datasets. Usually, values of D-W between 1.5 and 2.5 indicate residual independence."),
-                     DT::dataTableOutput(ns("assum_dur_out"))
-                 ),
-                 
-                 #Breusch-Pagan 
-                 box(width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = T, status="info", title = "Breusch-Pagan Test",
-                     p("Performs the Breusch-Pagan test against heteroskedasticity."),
-                     p("Has as assumption normal distribuition."),
-                     p("H0: there is homocedascity of variances (p-value > 0.05)."),
-                     p("H1: we can't consider that there is homocedascity of variances (p-value < 0.05)."),
-                     DT::dataTableOutput(ns("assum_bp_out"))
-                 ),
-                 
-                 #Bonferroni-Holm
-                 box(width = 12, solidHeader = TRUE, collapsible = TRUE, collapsed = T, status="info", title = "Bonferroni-Holm tests for the adjusted p-values",
-                     tableOutput(ns("assum_out_out"))
-                 ),
-                 
+                 )
              )
     )
   )
