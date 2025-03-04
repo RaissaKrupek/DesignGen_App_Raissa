@@ -200,9 +200,179 @@ mod_FixedModel_ui <- function(id){
 #' @import multtest
 #' @import dplyr
 #' @import emmeans
+#' @import GAD
 #' 
 #' @noRd 
 #' 
 mod_FixedModel_server <- function(input, output, session){
   ns <- session$ns
+  
+  output$data_exemple <- downloadHandler(
+    filename =  function() {
+      if(input$design == "block"){
+        paste("example_factorial_dbc.txt")
+      } 
+    },
+    # content is a function with argument file. content writes the plot to the device
+    content = function(file) {
+      if(input$assum_design == "block"){
+        dat <- read.csv("~/STATGEN/Iniciacao Cientifica/DesignGen_App_Raissa/Examples/example_factorial_dbc.csv")
+      } 
+      write.csv(dat, file = file, row.names = F)
+    } 
+  )
+  
+  # Observe the file input and display the data .txt, .xls e .csv 
+  observeEvent(input$separator, {
+    if (is.null(input$data_input)) {
+      output$dataview <- renderTable({
+        return(p("Please upload your file to update this section."))
+      })
+    } else {
+      dat <- read.csv(input$data_input$datapath, sep = input$separator)
+      output$dataview <- renderTable({
+        return(head(dat))
+      })
+    }
+  })
+  
+  # Data Loading
+  button1 <- eventReactive(input$read, {
+    #Aqui esta pegando os exemplos
+    if(is.null(input$data_input$datapath)){
+      if(input$assum_design == "block"){
+        dat <- read.csv(system.file("ext","example_inputs/example_blocks.csv", package = "StatGenESALQ"))
+      } 
+    } else {
+      #Aqui entra o upload
+      dat <- read.csv(input$data_input$datapath,
+                      sep = input$separator)
+    }
+    cat(colnames(dat))
+    dat
+  })
+  
+  # Dynamic UI for filtering data
+  observeEvent(input$data_input, {
+    output$filter_dynamic_factor <- renderUI({
+      req(input$filter_choice == "Yes")
+      data_names <- colnames(button1())  # Obtém os nomes das colunas
+      
+      box(width = 12,
+          checkboxGroupInput(ns("factor"), label = p("Choose the factors to be filtered:"),
+                             choices = data_names,
+                             selected = data_names[1])
+      )
+    })
+    showNotification("Data loaded")
+  })
+  
+  observeEvent(input$data_input, {
+    output$filter_dynamic_button <- renderUI({
+      req(input$filter_choice == "Yes")
+      dat <- button1()    # Obtém os dados
+      
+      actionButton(ns("filter_in_process"), "Select levels", icon("plus"))  # botão será usado para atualizar os níveis das colunas selecionadas.
+    })
+  })
+  
+  # Reactive filter data
+  observeEvent(input$data_input, {
+    output$filter_dynamic_level <- renderUI({
+      req(input$filter_choice == "Yes")
+      
+      num <- length(input$factor) # Conta quantos fatores foram selecionados
+      col_names <- input$factor   # Obtem os nomes dos fatores
+      
+      lapply(seq_len(num), function(i) {  # Itera sobre cada fator 
+        box(width = 12,
+            checkboxGroupInput(ns(paste0("filter", i)),  # Cria inputs dinâmicos
+                               label = paste0("Choose the levels from '", col_names[i], "' to be filtered:"),
+                               choices = "Press 'Select levels' button to update")
+        )
+      })
+    })
+  })
+  
+  observeEvent(input$filter_in_process, {
+    req(input$filter_choice == "Yes")
+    
+    dat <- button1()
+    if (length(input$factor) > 0) {
+      n <- length(input$factor)
+      for (i in 1:n) {
+        dat[[input$factor[i]]] <- as.factor(dat[[input$factor[i]]])  # Converte para fator
+      }
+    }
+    
+    num <- length(input$factor)
+    col_names <- input$factor
+    
+    lapply(seq_len(num), function(i) {
+      if(is.factor(dat[[input$factor[i]]])) {
+        box(width = 12,
+            updateCheckboxGroupInput(session, paste0("filter", i),
+                                     label = paste0("Choose the levels from '", col_names[i], "' to be filtered:"),
+                                     choices = unique(dat[[input$factor[i]]]))
+        )
+      }
+    })
+  })
+  
+  # Data Filtering
+  button2 <- eventReactive(input$filter_ready, {
+    if(input$filter_choice == "Yes") {
+      dat <- button1()
+      if (length(input$factor) > 0) {
+        n <- length(input$factor)
+        for (i in 1:n) {
+          dat[[input$factor[i]]] <- as.factor(dat[[input$factor[i]]])  # Converte para fator
+        }
+      }
+      
+      num <- length(input$factor)
+      col_names <- input$factor
+      
+      for (i in 1:num) {
+        dat <- dat %>%
+          filter(dat[[input$factor[i]]] %in% c(input[[paste0("filter", i)]])) %>%  # Filtra os valores selecionados
+          droplevels()  # Remove níveis não utilizados
+      }
+      dat
+      
+    } else {
+      dat <- button1()
+      dat # Retorna os dados sem filtro
+    }
+  })
+  
+  # Update choices for analysis
+  observeEvent(input$filter_ready, {
+    data_names <- colnames(button1())
+    
+    updateRadioButtons(session, "local",
+                       label="Choose the 'environment' variable to be evaluated:",
+                       choices = data_names,
+                       selected = unlist(data_names)[1])
+    
+    updateRadioButtons(session, "factor1",
+                       label="Choose the first factor to be evaluated:",
+                       choices = data_names)
+    
+    updateRadioButtons(session, "factor2",
+                       label="Choose the first factor to be evaluated:",
+                       choices = data_names)
+    
+    updateRadioButtons(session, "trait",
+                       label="Choose the 'trait' variable to be evaluated:",
+                       choices = data_names,
+                       selected = unlist(data_names)[1])
+  
+  })
+  
+  #ler explicacao do chat
+  
+  # -----------------------------
+
+  
 }
