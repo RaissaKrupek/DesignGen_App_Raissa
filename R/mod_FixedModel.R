@@ -50,6 +50,7 @@ mod_FixedModel_ui <- function(id){
                  #Visualização dos dados
                  box(width = 8, tableOutput(ns("dataview"))
                  ), hr(),
+                 
                  box(width = 12,
                      actionButton(ns("read"), "Read the file",icon("file-text"))), 
                  hr()
@@ -224,16 +225,18 @@ mod_FixedModel_server <- function(input, output, session){
   
   # Observe the file input and display the data .txt, .xls e .csv 
   observeEvent(input$separator, {
-    if (is.null(input$data_input)) {
-      output$dataview <- renderTable({
-        return(p("Please upload your file to update this section."))
-      })
-    } else {
-      dat <- read.csv(input$data_input$datapath, sep = input$separator)
-      output$dataview <- renderTable({
-        return(head(dat))
+    observeEvent(input$data_input, {
+      if (is.null(input$data_input)) {
+        output$dataview <- renderTable({
+          return(p("Please upload your file to update this section."))
+        })
+      } else {
+        dat <- read.csv(input$data_input$datapath, sep = input$separator)
+        output$dataview <- renderTable({
+         return(head(dat))
       })
     }
+    })
   })
   
   # Data Loading
